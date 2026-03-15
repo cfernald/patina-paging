@@ -771,7 +771,7 @@ impl<P: PageAllocator, Arch: PageTableHal> PageTableInternal<P, Arch> {
 
     pub fn install_page_table(&mut self) -> Result<(), PtError> {
         // SAFETY: The page table structure should guarantee that the page table is correct.
-        unsafe { Arch::install_page_table(self.base.into()) }
+        unsafe { Arch::install_page_table(self.base.into(), self.paging_type) }
     }
 
     pub fn query_memory_region(&self, address: u64, size: u64) -> Result<MemoryAttributes, PtError> {
@@ -848,9 +848,11 @@ pub unsafe fn get_table<'a, T, Arch: PageTableHal>(
         PageTableStateWithAddress::NotSelfMapped(phys) => phys.into(),
     };
 
+    let entry_count = Arch::MAX_ENTRIES;
+
     // SAFETY: Architecturally, the page table is laid out as an array of entries of type T, and we are trusting that
     // the base address is valid and points to a page table of the correct type.
-    unsafe { slice::from_raw_parts_mut(base as *mut T, Arch::MAX_ENTRIES) }
+    unsafe { slice::from_raw_parts_mut(base as *mut T, entry_count) }
 }
 
 pub(crate) fn get_entry<'a, Arch: PageTableHal>(
@@ -939,7 +941,7 @@ mod tests {
             ACTIVE.load(std::sync::atomic::Ordering::Relaxed)
         }
         unsafe fn zero_page(_va: VirtualAddress) {}
-        unsafe fn install_page_table(_base: u64) -> Result<(), PtError> {
+        unsafe fn install_page_table(_base: u64, _paging_type: PagingType) -> Result<(), PtError> {
             Ok(())
         }
         fn invalidate_tlb(_va: VirtualAddress) {}
